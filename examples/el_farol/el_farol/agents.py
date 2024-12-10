@@ -1,10 +1,9 @@
 import mesa
 import numpy as np
 
-
 class BarCustomer(mesa.Agent):
-    def __init__(self, model, memory_size, crowd_threshold, num_strategies):
-        super().__init__(model)
+    def __init__(self, model, unique_id, memory_size, crowd_threshold, num_strategies, bias_factor=0):
+        super().__init__(unique_id, model)
         # Random values from -1.0 to 1.0
         self.strategies = np.random.rand(num_strategies, memory_size + 1) * 2 - 1
         self.best_strategy = self.strategies[0]
@@ -12,12 +11,14 @@ class BarCustomer(mesa.Agent):
         self.memory_size = memory_size
         self.crowd_threshold = crowd_threshold
         self.utility = 0
+        self.bias_factor = bias_factor  # New bias factor
         self.update_strategies()
 
     def update_attendance(self):
         prediction = self.predict_attendance(
             self.best_strategy, self.model.history[-self.memory_size :]
         )
+        prediction += self.bias_factor  # Adjust prediction using bias factor
         if prediction <= self.crowd_threshold:
             self.attend = True
             self.model.attendance += 1
@@ -45,19 +46,5 @@ class BarCustomer(mesa.Agent):
             self.utility += 1
 
     def predict_attendance(self, strategy, subhistory):
-        # This is extracted from the source code of the model in
-        # https://ccl.northwestern.edu/netlogo/models/ElFarol.
-        # This reports an agent's prediction of the current attendance
-        # using a particular strategy and portion of the attendance history.
-        # More specifically, the strategy is then described by the formula
-        # p(t) = x(t - 1) * a(t - 1) + x(t - 2) * a(t - 2) +..
-        #      ... + x(t - memory_size) * a(t - memory_size) + c * 100,
-        # where p(t) is the prediction at time t, x(t) is the attendance of the
-        # bar at time t, a(t) is the weight for time t, c is a constant, and
-        # MEMORY-SIZE is an external parameter.
-
-        # The first element of the strategy is the constant, c, in the
-        # prediction formula. one can think of it as the the agent's prediction
-        # of the bar's attendance in the absence of any other data then we
-        # multiply each week in the history by its respective weight.
+        # Predict attendance based on strategy and history
         return strategy[0] * 100 + np.dot(strategy[1:], subhistory)
