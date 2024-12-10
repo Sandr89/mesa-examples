@@ -3,7 +3,6 @@ import numpy as np
 
 from .agents import BarCustomer
 
-
 class ElFarolBar(mesa.Model):
     def __init__(
         self,
@@ -11,6 +10,7 @@ class ElFarolBar(mesa.Model):
         num_strategies=10,
         memory_size=10,
         N=100,
+        bias_factor=0,
     ):
         super().__init__()
         self.running = True
@@ -18,13 +18,14 @@ class ElFarolBar(mesa.Model):
 
         # Initialize the previous attendance randomly so the agents have a history
         # to work with from the start.
-        # The history is twice the memory, because we need at least a memory
-        # worth of history for each point in memory to test how well the
-        # strategies would have worked.
         self.history = np.random.randint(0, 100, size=memory_size * 2).tolist()
         self.attendance = self.history[-1]
-        for _ in range(self.num_agents):
-            BarCustomer(self, memory_size, crowd_threshold, num_strategies)
+        self.schedule = mesa.time.RandomActivation(self)
+
+        # Create agents with bias factor
+        for i in range(self.num_agents):
+            agent = BarCustomer(self, i, memory_size, crowd_threshold, num_strategies, bias_factor)
+            self.schedule.add(agent)
 
         self.datacollector = mesa.DataCollector(
             model_reporters={"Customers": "attendance"},
@@ -34,9 +35,7 @@ class ElFarolBar(mesa.Model):
     def step(self):
         self.datacollector.collect(self)
         self.attendance = 0
-        self.agents.shuffle_do("update_attendance")
-        # We ensure that the length of history is constant
-        # after each step.
+        self.schedule.step()
+        # Maintain constant history length
         self.history.pop(0)
         self.history.append(self.attendance)
-        self.agents.shuffle_do("update_strategies")
